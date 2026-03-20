@@ -1,9 +1,6 @@
-*********
-Changelog
-*********
+# Changelog
 
-Version 1.0.1 (2024-12-04)
-**************************
+## Version 1.0.1 (2024-12-04)
 
 * 🧹 Lint: Reconfigured linting settings.
 * 🐛 Fixes: Removed unused Haversine distance function and adapted to `osmnx` API changes.
@@ -11,8 +8,7 @@ Version 1.0.1 (2024-12-04)
 * 📝 Documentation: Various updates including changelog, badge links,
   mobile optimization, GitHub handles, installation instructions, `CITATION.cff`, and `paper.md`.
 
-Version 1.0.0 (2024-08-12)
-**************************
+## Version 1.0.0 (2024-08-12)
 
 * ✨ First major release ✨
 * 📦 Prepared for osmnx 2.0.0 and shipped `cities.yml` in pypi package.
@@ -50,8 +46,7 @@ Version 0.2.2 (2023-06-27)
   name.
 * ⬆️ Demand Change: Added Superblock aggregate statistics for the betweennesses.
 
-Version 0.2.1 (2023-06-22)
-**************************
+## Version 0.2.1 (2023-06-22)
 
 * ✨ Second release ✨
 * ⬆️ Integrated final graph statistics and Superblock statistics.
@@ -66,16 +61,14 @@ Version 0.2.1 (2023-06-22)
    :target: https://codecov.io/gh/BikeNetKit/superblockify
    :height: 2ex
 
-Version 0.2.0 (2023-06-20)
-**************************
+## Version 0.2.0 (2023-06-20)
 
 * 🔧 Sped up population distribution in
   :func:`superblockify.population.approximation.get_edge_population`.
 * ⬆️ Add population and density to Superblocks
 * 🐛 Fix: Graph import projection order. Un-skewed distance attribute.
 
-Version 0.1.3 (2023-06-19)
-**************************
+## Version 0.1.3 (2023-06-19)
 
 * 📚️ Documented approaches in reference notebooks :ref:`Population Data`,
   :ref:`Street Tessellation`, and :ref:`Street Population Density`.
@@ -88,31 +81,27 @@ Version 0.1.3 (2023-06-19)
 * ⬆️ Added general graph statistics :mod:`superblockify.metric.graph_stats`.
   Including spatial clustering and anisotropy.
 
-Version 0.1.2 (2023-05-18)
-**************************
+## Version 0.1.2 (2023-05-18)
 
 * ⬆️ Added Partitioner based on Betweenness Centrality.
 * 🐛 Fix segfault in betweenness centrality calculation caused by testcase with one node
   graph.
 
-Version 0.1.1 (2023-05-15)
-**************************
+## Version 0.1.1 (2023-05-15)
 
 * ⬆️ Added Betweenness Centrality Calculation in measures, precompiled version works
   quick on metropolitan sized city networks.
 * ⬆️ Added speed limit: Routing and low traffic speed overwriting. Unit can be passed
   when initializing a partitioner.
 
-Version 0.1.0 (2023-04-11)
-**************************
+## Version 0.1.0 (2023-04-11)
 
 * ✨ Initial release ✨
 * 🔧 Full rework of the restricted distance calculation. Runs quicker and is more
   memory efficient. Also, path finding had a bug in the previous version.
 
 
-Version 0.0.0
-*************
+## Version 0.0.0
 
 * See changes before in the repository under the tag `0.0.0
   <https://github.com/BikeNetKit/superblockify/tags>`_.
