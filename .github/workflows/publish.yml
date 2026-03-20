@@ -1,9 +1,11 @@
 name: Publish to PyPI
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -12,6 +14,8 @@ permissions:
 jobs:
   publish:
     name: Publish to PyPI
+    if: |
+      contains(github.event.pull_request.labels.*.name, 'autorelease: tagged')
     runs-on: ubuntu-latest
     environment:
       name: pypi
