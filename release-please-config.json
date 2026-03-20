@@ -2,6 +2,7 @@
   "packages": {
     ".": {
       "release-type": "python",
+      "changelog-path": "docs/changelog.rst",
       "extra-files": [
         "superblockify/_version.py",
         "docs/conf.py"
