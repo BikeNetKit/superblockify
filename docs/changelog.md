@@ -5,38 +5,17 @@
 
 ### Bug Fixes
 
-* `osmnx` API change & `union_all()` ([a46fefa](https://github.com/BikeNetKit/superblockify/commit/a46fefadca1f0f19634f3d2d22ba65f30f2f25e5))
-* added missing cache id & Update checkout and cache version ([df33318](https://github.com/BikeNetKit/superblockify/commit/df33318535fc9a1106e8bba622230321e65e28b3))
-* bump version to 1.0.1 ([4cdc244](https://github.com/BikeNetKit/superblockify/commit/4cdc244c3fce4446149dd949e901e39adcb02fd2))
-* cell dissolve column ([3c0a18d](https://github.com/BikeNetKit/superblockify/commit/3c0a18d011d0c5e06cbfd76ea0e5363416f593ea))
-* Coverage pipeline & Pylint imports ([0ea2ef2](https://github.com/BikeNetKit/superblockify/commit/0ea2ef2aa90db123d1805b26a588a3cc09e398f9))
-* distance calculation order ([7382ce4](https://github.com/BikeNetKit/superblockify/commit/7382ce438223ab3694a142a5d7d1da040f041790))
-* Full raster path ([c2892df](https://github.com/BikeNetKit/superblockify/commit/c2892df540c596e6c858bb51a3cf7d8d336e5cbe))
-* graph dtype for `population` ([28dd7ce](https://github.com/BikeNetKit/superblockify/commit/28dd7ce6dda462cab74ae81ba2e18580486851a7))
-* Graph Import Projection Order ([56aefb7](https://github.com/BikeNetKit/superblockify/commit/56aefb7cdb07f8c2009df4960095cb69d66ed9d3))
-* hash environment file - load cache ([985d330](https://github.com/BikeNetKit/superblockify/commit/985d330d9beb684db08f7096dbdf5297d4f96fe0))
-* Metric load path ([1143822](https://github.com/BikeNetKit/superblockify/commit/11438229bc70bb1305314b3978ea5650d3265a77))
-* missing attribute ([9ce55c8](https://github.com/BikeNetKit/superblockify/commit/9ce55c81c939dc69c7de1c4a7a5244ae4cacc1ff))
-* move test fixture `_delete_ghsl_tifs` ([537897a](https://github.com/BikeNetKit/superblockify/commit/537897ab448f7e6916a5cfb9ec67942e464f80d2))
-* remove unused Haversine distance function ([29b470d](https://github.com/BikeNetKit/superblockify/commit/29b470dac3646d382e7d6b17af7b851090bda904))
-* Set date to today ([fa3c695](https://github.com/BikeNetKit/superblockify/commit/fa3c6956a83b9167dccc2f724998caeb31ae1199))
-* Split edge length when splitting isolated edges ([75f13fc](https://github.com/BikeNetKit/superblockify/commit/75f13fc19232f387f9259e7b1a2ebe2acc1b3016))
-* tests for newly supported degree splitting ([23d69f8](https://github.com/BikeNetKit/superblockify/commit/23d69f872cdd130b50eadee480719e040ddcb8e8))
 * TypeError in utils ([fc622f3](https://github.com/BikeNetKit/superblockify/commit/fc622f354f34da287ffef32c1939351d6f229e0b))
-* use inbuilt `sum` due to `numpy` incomp. ([982e4d9](https://github.com/BikeNetKit/superblockify/commit/982e4d988a03ee0e1f8beb67674337d3fd346a20))
+* use inbuilt `sum` due to `numpy` incomp. ([982e4d9](https://github.com/BikeNetKit/superblockify/commit/982e4d988a03ee0e1f8beb67674337d3fd346a20)) [#104](https://github.com/BikeNetKit/superblockify/pull/104)
 * Use partitioner copy fixture ([d38ac6e](https://github.com/BikeNetKit/superblockify/commit/d38ac6e3742d3198dba8171402f24f411df50bab))
-
-
-### Dependencies
-
-* Add separate dev `environment-dev.yml` ([a190a54](https://github.com/BikeNetKit/superblockify/commit/a190a54a40a67b3d8ec2415efe330349d29bbe18))
-
 
 ### Documentation
 
 * Add Master Thesis link and references ([733b644](https://github.com/BikeNetKit/superblockify/commit/733b64448f4bdb22075f8e6d747bc08a3c2855b7))
 
-## Changelog
+### Acknowledgements
+
+Thanks to @juanfonsecaLS1 for testing and feedback.
 
 ## Version 1.0.1 (2024-12-04)
 
