@@ -173,7 +173,7 @@ def test_get_ghsl_urls_invalid_bbox(bbox_moll):
         ghsl.get_ghsl_urls(bbox_moll)
 
 
-BASE_PATH = (
+base_path = (
     "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_POP_GLOBE_R2023A"
     "/GHS_POP_E2025_GLOBE_R2023A_54009_100/V1-0/tiles/"
 )
@@ -182,10 +182,10 @@ BASE_PATH = (
 @pytest.mark.parametrize(
     "urls",
     [
-        BASE_PATH + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R2_C30.zip",
+        base_path + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R2_C30.zip",
         [
-            BASE_PATH + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R2_C30.zip",
-            BASE_PATH + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R7_C2.zip",
+            base_path + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R2_C30.zip",
+            base_path + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R7_C2.zip",
         ],
     ],
 )
@@ -203,7 +203,7 @@ def test_download_ghsl(urls, _delete_ghsl_tifs):
         assert isfile(filepath)
 
 
-BASE_PATH = "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/"
+base_path = "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/"
 
 
 @pytest.mark.parametrize(
@@ -223,12 +223,12 @@ BASE_PATH = "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/"
 def test_download_ghsl_invalid_urls(url, save_dir):
     """Test the download_ghsl function with invalid urls."""
     with pytest.raises(ValueError):
-        ghsl.download_ghsl(BASE_PATH + url, save_dir=save_dir)
+        ghsl.download_ghsl(base_path + url, save_dir=save_dir)
 
 
 def test_download_ghsl_create_save_dir(_delete_ghsl_tifs):
     """Test the download_ghsl function with non-existent save_dir."""
-    url = BASE_PATH + (
+    url = base_path + (
         "GHS_POP_GLOBE_R2023A/GHS_POP_E2025_GLOBE_R2023A_54009_100/V1-0/tiles/"
         "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R18_C26.zip"
     )
