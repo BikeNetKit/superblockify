@@ -63,7 +63,7 @@ import numpy as np
 import pandas as pd
 from networkx.algorithms.centrality.betweenness import \
     _single_source_dijkstra_path_basic, \
-    _rescale, _rescale_e
+    _rescale
 from scipy.sparse.csgraph import dijkstra
 
 from superblockify.metrics.distances import shortest_paths_restricted
@@ -305,12 +305,12 @@ def calculate_betweenness_with(method, *args, show_tree=True):
         del betweenness_edge[n]
         del betweenness_edge_len[n]
         del betweenness_edge_lin[n]
-    betweenness_edge = _rescale_e(betweenness_edge, len(G), normalized=True,
-                                  directed=True)
-    betweenness_edge_len = _rescale_e(betweenness_edge_len, len(G), normalized=True,
-                                      directed=True)
-    betweenness_edge_lin = _rescale_e(betweenness_edge_lin, len(G), normalized=True,
-                                      directed=True)
+    betweenness_edge = _rescale(betweenness_edge, len(G), normalized=True,
+                                directed=True, endpoints=True)
+    betweenness_edge_len = _rescale(betweenness_edge_len, len(G), normalized=True,
+                                    directed=True, endpoints=True)
+    betweenness_edge_lin = _rescale(betweenness_edge_lin, len(G), normalized=True,
+                                    directed=True, endpoints=True)
     return {
         "Node": betweenness,
         "Edge": betweenness_edge,
