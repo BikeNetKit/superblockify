@@ -11,7 +11,10 @@ from numpy import ndarray
 from superblockify.config import Config
 from superblockify.population import ghsl
 
+from tests.conftest import mark_xfail_flaky_download
 
+
+@mark_xfail_flaky_download
 @pytest.mark.parametrize(
     "resample_factor, no_window",
     [
@@ -40,6 +43,7 @@ def test_resample_load_window_gdf(resample_factor, no_window, test_one_city_copy
     assert isinstance(res_affine, Affine)
 
 
+@mark_xfail_flaky_download
 @pytest.mark.parametrize("window", [True, False, 1, 1.0, "test"])
 def test_resample_load_window_gdf_wrong_type(window, test_one_city_copy):
     """Test loading and resampling a gdf window with wrong type."""
@@ -179,6 +183,7 @@ base_path = (
 )
 
 
+@mark_xfail_flaky_download
 @pytest.mark.parametrize(
     "urls",
     [
@@ -226,6 +231,7 @@ def test_download_ghsl_invalid_urls(url, save_dir):
         ghsl.download_ghsl(base_path + url, save_dir=save_dir)
 
 
+@mark_xfail_flaky_download
 def test_download_ghsl_create_save_dir(_delete_ghsl_tifs):
     """Test the download_ghsl function with non-existent save_dir."""
     url = base_path + (

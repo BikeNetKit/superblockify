@@ -10,7 +10,10 @@ from superblockify.population.approximation import (
     get_edge_population,
 )
 
+from tests.conftest import mark_xfail_flaky_download
 
+
+@mark_xfail_flaky_download
 def test_add_edge_population(test_city_small_copy):
     """Test the `add_edge_population` function by design."""
     _, graph = test_city_small_copy
