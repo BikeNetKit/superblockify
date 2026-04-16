@@ -6,6 +6,8 @@ See reference notebook for a detailed description of the population approximatio
 from functools import partial
 from multiprocessing import Pool
 
+import pandas as pd
+import geopandas as gpd
 from geopandas import GeoDataFrame
 from numpy import float32, sum as npsum, zeros
 from rasterio import open as rasopen
@@ -124,6 +126,50 @@ def get_population_area(graph):
     return npsum(population), npsum(area)
 
 
+def _load_ghsl_multifile(ghsl_files, bbox_moll):
+    """Load and concatenate GHSL polygons from multiple tile files.
+
+    Parameters
+    ----------
+    ghsl_files : list
+        List of paths to GHSL raster tile files.
+    bbox_moll : tuple
+        Bounding box (minx, miny, maxx, maxy) in World Mollweide coordinates.
+
+    Returns
+    -------
+    geopandas.GeoDataFrame
+        Combined GeoDataFrame with polygons from all tiles.
+
+    Notes
+    -----
+    See Issue #124.
+    """
+    ghsl_polygons_list = []
+
+    for ghsl_file in ghsl_files:
+        logger.debug("Loading GHSL polygons from tile: %s", ghsl_file)
+        with rasopen(ghsl_file) as src:
+            load_window = src.window(*bbox_moll)
+        # Load polygons from the windowed region of this tile
+        ghsl_polygons = load_ghsl_as_polygons(ghsl_file, window=load_window)
+        ghsl_polygons_list.append(ghsl_polygons)
+
+    # Combine all GeoDataFrames while preserving CRS and geometry
+    ghsl_polygons_combined = GeoDataFrame(
+        pd.concat(ghsl_polygons_list, ignore_index=True),
+        crs="World Mollweide",
+        geometry="geometry"
+    )
+
+    logger.debug(
+        "Loaded %d polygons from %d GHSL tiles.",
+        len(ghsl_polygons_combined),
+        len(ghsl_files)
+    )
+    return ghsl_polygons_combined
+
+
 def get_edge_population(graph, batch_size=10000, **tess_kwargs):
     """Get edge population for the graph.
 
@@ -185,10 +231,13 @@ def get_edge_population(graph, batch_size=10000, **tess_kwargs):
     bbox_moll = edge_cells.union_all().buffer(100).bounds
     ghsl_file = get_ghsl(bbox_moll)
 
-    with rasopen(ghsl_file) as src:
-        load_window = src.window(*bbox_moll)
-
-    ghsl_polygons = load_ghsl_as_polygons(ghsl_file, window=load_window)
+    # Checking if ghsl_file is a list of multiple tile files. See Issue #124.
+    if isinstance(ghsl_file, list):
+        ghsl_polygons = _load_ghsl_multifile(ghsl_file, bbox_moll)
+    else:
+        with rasopen(ghsl_file) as src:
+            load_window = src.window(*bbox_moll)
+        ghsl_polygons = load_ghsl_as_polygons(ghsl_file, window=load_window)
     # Build STRtree index
     logger.debug("Building STRtree index.")
     ghsl_polygons_index = STRtree(ghsl_polygons.geometry)
