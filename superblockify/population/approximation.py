@@ -6,8 +6,7 @@ See reference notebook for a detailed description of the population approximatio
 from functools import partial
 from multiprocessing import Pool
 
-import pandas as pd
-import geopandas as gpd
+from pandas import concat
 from geopandas import GeoDataFrame
 from numpy import float32, sum as npsum, zeros
 from rasterio import open as rasopen
@@ -157,7 +156,7 @@ def _load_ghsl_multifile(ghsl_files, bbox_moll):
 
     # Combine all GeoDataFrames while preserving CRS and geometry
     ghsl_polygons_combined = GeoDataFrame(
-        pd.concat(ghsl_polygons_list, ignore_index=True),
+        concat(ghsl_polygons_list, ignore_index=True),
         crs="World Mollweide",
         geometry="geometry"
     )
@@ -231,7 +230,7 @@ def get_edge_population(graph, batch_size=10000, **tess_kwargs):
     bbox_moll = edge_cells.union_all().buffer(100).bounds
     ghsl_file = get_ghsl(bbox_moll)
 
-    # Checking if ghsl_file is a list of multiple tile files. See Issue #124.
+    # Checking if ghsl_file is a list of multiple tile files. 
     if isinstance(ghsl_file, list):
         ghsl_polygons = _load_ghsl_multifile(ghsl_file, bbox_moll)
     else:
