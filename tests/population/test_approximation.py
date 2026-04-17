@@ -3,11 +3,12 @@
 import pytest
 from networkx import ego_graph
 from numpy import float32
-
+from osmnx import graph_from_point, project_graph
 from superblockify.population.approximation import (
     add_edge_population,
     get_population_area,
     get_edge_population,
+    _load_ghsl_multifile,
 )
 
 from tests.conftest import mark_xfail_flaky_download
@@ -65,3 +66,29 @@ def test_get_edge_population_faulty_batch_size(test_city_small_copy, batch_size)
     _, graph = test_city_small_copy
     with pytest.raises(ValueError):
         get_edge_population(graph, batch_size=batch_size)
+
+
+@pytest.mark.parametrize("lat,lon,dist,city_name", [
+    (41.8956456, 12.4655397, 500, "Rome"),
+    (8.098238, -76.729070, 200, "Turbo"),
+])
+@mark_xfail_flaky_download
+def test_get_edge_population_multiple_tiles(lat, lon, dist, city_name):
+    """Test that get_edge_population handles multiple GHSL tiles. Issue #124.
+    """
+    graph = graph_from_point(
+        (lat, lon), 
+        dist=dist, 
+        network_type='drive', 
+        simplify=True
+    )
+    graph = project_graph(graph)
+    
+    add_edge_population(graph, overwrite=True)
+        
+    # Check all edges have the `population` and `area` attributes
+    for _, _, data in graph.edges(data=True):
+        assert isinstance(data["population"], float32)
+        assert isinstance(data["area"], float32)
+        assert isinstance(data["cell_id"], int)
+
