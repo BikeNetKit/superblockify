@@ -6,7 +6,7 @@ from os.path import getsize
 from re import match
 
 import osmnx as ox
-from networkx import Graph, is_isomorphic, set_node_attributes, set_edge_attributes
+from networkx import Graph, is_isomorphic, set_node_attributes, set_edge_attributes, MultiDiGraph
 from numba import njit, int64, int32, prange
 from numpy import (
     zeros,
