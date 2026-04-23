@@ -6,7 +6,7 @@ from os.path import getsize
 from re import match
 
 import osmnx as ox
-from networkx import Graph, is_isomorphic, set_node_attributes
+from networkx import Graph, is_isomorphic, set_node_attributes, set_edge_attributes
 from numba import njit, int64, int32, prange
 from numpy import (
     zeros,
@@ -72,6 +72,62 @@ def extract_attributes(graph, edge_attributes, node_attributes):
             attr_dict.pop(att, None)
 
     return graph
+
+def preprocess_graph(G: MultiDiGraph, boundary_buffer_dist: float = 200) -> MultiDiGraph:
+    """Preprocesses a graph for use with a partitioner.
+
+    Parameters
+    ----------
+    G : networkx.MultiDiGraph
+        The graph to preprocess.
+    boundary_buffer_dist : float, optional
+        The buffer distance to create the boundary around the graph, by default 200 meters.
+        
+    Returns
+    -------
+    networkx.MultiDiGraph
+        The preprocessed graph.
+    """
+        
+    G = ox.add_edge_bearings(G)    
+
+    if not ox.projection.is_projected(G.graph["crs"]):
+        G = ox.project_graph(G)
+        
+    edges_gdf = ox.graph_to_gdfs(G, nodes=False, edges=True)
+    names_attribute = edges_gdf.columns
+
+    if "length" not in names_attribute:
+        logger.warning(
+            "Length attribute is not present in the graph. Calculating lengths from geometry."
+        )
+        edges_lengths = edges_gdf.geometry.length
+        set_edge_attributes(G, edges_lengths.to_dict(), name="length")
+
+    if "maxspeed" not in names_attribute:
+        logger.warning(
+            "maxspeed attribute is not present in the graph. Global max speeds are going to be set to 30."
+        )
+        set_edge_attributes(G, 30, name="maxspeed")
+
+    G = ox.add_edge_speeds(G)
+    G = ox.add_edge_travel_times(G)
+    
+
+    if hasattr(edges_gdf.geometry, "unary_union"):
+        edge_union = edges_gdf.geometry.unary_union
+    else:
+        edge_union = edges_gdf.geometry.union_all()
+
+    enclosing_hull = edge_union.buffer(boundary_buffer_dist).convex_hull
+    
+    G.graph.update(basic_graph_stats(G, area=enclosing_hull.area))
+    G.graph["area"] = enclosing_hull.area
+    G.graph['boundary'] = enclosing_hull
+
+    add_edge_population(G)
+
+    return G
 
 
 def load_graph_from_place(
