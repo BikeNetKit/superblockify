@@ -125,10 +125,10 @@ def preprocess_graph(G: MultiDiGraph, boundary_buffer_dist: float = 200) -> Mult
 
     # Create a convex hull of the graph to calculate the area and set the boundary for saving the graph.
     # This is implemented with an if statement to support older versions of geopandas < 1.0.0 
-    if hasattr(edges_gdf.geometry, "unary_union"):
-        edge_union = edges_gdf.geometry.unary_union
-    else:
+    if hasattr(edges_gdf.geometry, "union_all"):
         edge_union = edges_gdf.geometry.union_all()
+    else:
+        edge_union = edges_gdf.geometry.unary_union
 
     # A convex hull is created arround the bufferred edges.
     enclosing_hull = edge_union.buffer(boundary_buffer_dist).convex_hull
