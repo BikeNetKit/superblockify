@@ -29,6 +29,7 @@ from .partitioning.utils import reduce_graph
 from .config import logger, Config
 from .graph_stats import basic_graph_stats
 from .population.approximation import add_edge_population
+from .population.tessellation import add_edge_cells
 
 
 def extract_attributes(graph, edge_attributes, node_attributes):
@@ -140,6 +141,9 @@ def preprocess_graph(G: MultiDiGraph, boundary_buffer_dist: float = 200) -> Mult
 
     # Adding the edge population data
     add_edge_population(G)
+
+    # Adding tessellation cells to edges
+    add_edge_cells(G)
 
     return G
 
