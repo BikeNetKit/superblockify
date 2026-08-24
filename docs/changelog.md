@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/BikeNetKit/superblockify/compare/v1.0.2...v1.0.3) (2026-08-24)
+
+
+### Bug Fixes
+
+* return real-valued high BC anisotropy on NumPy &gt;= 2 ([a756638](https://github.com/BikeNetKit/superblockify/commit/a756638f7e9316478abc356fa2f71f125b8e8651))
+
 ## [1.0.2](https://github.com/BikeNetKit/superblockify/compare/1.0.1...v1.0.2) (2026-03-20)
 
 
