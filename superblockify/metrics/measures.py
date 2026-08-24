@@ -755,12 +755,14 @@ def __calculate_high_bc_anisotropy(coord_high_bc):
         )
     # Covariance matrix
     cov = np.cov(coord_high_bc.T)
-    # Eigenvalues
-    eigvals = np.linalg.eigvals(cov)
-    # Sort eigenvalues
-    eigvals = np.sort(eigvals)[::-1]
-    # Anisotropy
-    return eigvals[0] / eigvals[1]
+    # Eigenvalues - the covariance matrix is symmetric, so use eigvalsh, which
+    # always returns real eigenvalues in ascending order (eigvals returns them as
+    # complex dtype on NumPy >= 2)
+    eigvals = np.linalg.eigvalsh(cov)
+    # Anisotropy - ratio of largest to smallest eigenvalue, infinite if degenerate;
+    # clip numerical-noise negative eigenvalues to zero
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return float(eigvals[-1] / max(eigvals[0], 0.0))
 
 
 def add_ltn_means(components, edge_attr):
