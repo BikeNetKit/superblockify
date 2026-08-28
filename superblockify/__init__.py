@@ -7,6 +7,7 @@ environ["USE_PYGEOS"] = "0"  # pylint: disable=wrong-import-position
 from ._api import *
 from ._version import __version__
 from .config import logger, Config
+from .utils import preprocess_graph
 
 logger.info("superblockify version %s", __version__)
 logger.debug("Using graph directory %s", Config.GRAPH_DIR)

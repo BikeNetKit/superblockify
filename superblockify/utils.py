@@ -6,7 +6,7 @@ from os.path import getsize
 from re import match
 
 import osmnx as ox
-from networkx import Graph, is_isomorphic, set_node_attributes
+from networkx import Graph, is_isomorphic, set_node_attributes, set_edge_attributes, MultiDiGraph
 from numba import njit, int64, int32, prange
 from numpy import (
     zeros,
@@ -29,6 +29,7 @@ from .partitioning.utils import reduce_graph
 from .config import logger, Config
 from .graph_stats import basic_graph_stats
 from .population.approximation import add_edge_population
+from .population.tessellation import add_edge_cells
 
 
 def extract_attributes(graph, edge_attributes, node_attributes):
@@ -72,6 +73,79 @@ def extract_attributes(graph, edge_attributes, node_attributes):
             attr_dict.pop(att, None)
 
     return graph
+
+def preprocess_graph(G: MultiDiGraph, boundary_buffer_dist: float = 200) -> MultiDiGraph:
+    """Preprocesses a graph for use with a partitioner.
+
+    Parameters
+    ----------
+    G : networkx.MultiDiGraph
+        The graph to preprocess.
+    boundary_buffer_dist : float, optional
+        The buffer distance to create the boundary around the graph, by default 200 meters.
+        
+    Returns
+    -------
+    networkx.MultiDiGraph
+        The preprocessed graph.
+    """
+
+    # Add edge bearings    
+    G = ox.add_edge_bearings(G)    
+
+    # Checks if the graph is projected, if not it projects it to the local UTM.
+    if not ox.projection.is_projected(G.graph["crs"]):
+        G = ox.project_graph(G)
+    
+    # A geodataframe is created from the projected graph for extracting the
+    # boundary of the graph. And, if missing, extract the lenghts of the geometies 
+    edges_gdf = ox.graph_to_gdfs(G, nodes=False, edges=True)
+    names_attribute = edges_gdf.columns
+
+    # Checks if the lenght is missing, e.g. the graph was not created with osmnx, and adds it if necessary
+    if "length" not in names_attribute:
+        logger.warning(
+            "Length attribute is not present in the graph. Calculating lengths from geometry."
+        )
+        edges_lengths = edges_gdf.geometry.length
+        set_edge_attributes(G, edges_lengths.to_dict(), name="length")
+
+    # Checks if the maxspeed attribute is missing, e.g. this is not a graph from OSM data.
+    # Adds a default maxspeed of 30 km/h if it is missing, as this is needed for calculating
+    # travel times. 
+    if "maxspeed" not in names_attribute:
+        logger.warning(
+            "maxspeed attribute is not present in the graph. Global max speeds are going to be set to 30 km/h."
+        )
+        set_edge_attributes(G, 30, name="maxspeed")
+
+    # Add speeds and travel times using  osmnx 
+    G = ox.add_edge_speeds(G)
+    G = ox.add_edge_travel_times(G)
+    
+
+    # Create a convex hull of the graph to calculate the area and set the boundary for saving the graph.
+    # This is implemented with an if statement to support older versions of geopandas < 1.0.0 
+    if hasattr(edges_gdf.geometry, "union_all"):
+        edge_union = edges_gdf.geometry.union_all()
+    else:
+        edge_union = edges_gdf.geometry.unary_union
+
+    # A convex hull is created arround the bufferred edges.
+    enclosing_hull = edge_union.buffer(boundary_buffer_dist).convex_hull
+    
+    # Assigning the attributes to the graph
+    G.graph.update(basic_graph_stats(G, area=enclosing_hull.area))
+    G.graph["area"] = enclosing_hull.area
+    G.graph['boundary'] = enclosing_hull
+
+    # Adding the edge population data
+    add_edge_population(G)
+
+    # Adding tessellation cells to edges
+    add_edge_cells(G)
+
+    return G
 
 
 def load_graph_from_place(
