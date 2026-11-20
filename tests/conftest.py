@@ -2,7 +2,7 @@
 
 import socket
 from copy import deepcopy
-from os import environ, listdir, remove
+from os import environ, listdir, makedirs, remove
 from os.path import getsize, join, exists
 from shutil import rmtree
 
@@ -301,6 +301,14 @@ def test_one_city_preloaded_copy(test_one_city_preloaded):
 # *****************************************************
 # Clean up test folders after tests are done
 # ******************************************
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _create_test_data_directories():
+    """Create data directories that tests write to."""
+    for directory in (Config.GRAPH_DIR, Config.RESULTS_DIR):
+        if not exists(directory):
+            makedirs(directory)
 
 
 @pytest.fixture(scope="class")
