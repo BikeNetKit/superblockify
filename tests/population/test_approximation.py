@@ -47,7 +47,9 @@ def fake_ghsl_raster(tmp_path, test_city_small_copy):
     return str(path)
 
 
-def test_add_edge_population(test_city_small_copy, fake_ghsl_raster, monkeypatch):  # pylint: disable=redefined-outer-name
+def test_add_edge_population(
+    test_city_small_copy, fake_ghsl_raster, monkeypatch
+):  # pylint: disable=redefined-outer-name
     """Test the `add_edge_population` function by design."""
     monkeypatch.setattr(approximation, "get_ghsl", lambda bbox: fake_ghsl_raster)
     _, graph = test_city_small_copy
