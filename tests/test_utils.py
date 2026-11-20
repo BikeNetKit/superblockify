@@ -74,9 +74,9 @@ def test_load_graph_from_place(tmp_path, monkeypatch, only_cache, max_nodes):
     boundary = _boundary_wgs84(graph)
 
     monkeypatch.setattr("superblockify.utils.add_edge_population", _fake_add_population)
-    monkeypatch.setattr(ox, "geocode_to_gdf", lambda *args, **kwargs: boundary.copy())
+    monkeypatch.setattr(ox, "geocode_to_gdf", lambda *_args, **_kwargs: boundary.copy())
 
-    def fake_graph_from_polygon(*args, **kwargs):
+    def fake_graph_from_polygon(*_args, **_kwargs):
         if only_cache:
             raise CacheOnlyInterruptError("Only cache allowed.")
         return graph.copy()
@@ -134,12 +134,14 @@ def test_load_graph_from_place_search_str_types(
     boundary = _boundary_wgs84(graph)
     by_osmid = []
 
-    def fake_geocode(*args, **kwargs):
+    def fake_geocode(*_args, **kwargs):
         by_osmid.append(bool(kwargs.get("by_osmid")))
         return boundary.copy()
 
     monkeypatch.setattr(ox, "geocode_to_gdf", fake_geocode)
-    monkeypatch.setattr(ox, "graph_from_polygon", lambda *args, **kwargs: graph.copy())
+    monkeypatch.setattr(
+        ox, "graph_from_polygon", lambda *_args, **_kwargs: graph.copy()
+    )
 
     result = load_graph_from_place(
         save_as=join(tmp_path, "query_test.graphml"),

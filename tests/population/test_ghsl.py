@@ -19,7 +19,7 @@ GHSL_TIF = join(
 )
 
 
-class _FakeResponse:
+class _FakeResponse:  # pylint: disable=too-few-public-methods
     """Minimal requests response for mocked downloads."""
 
     def __init__(self, content=b"", status_code=200, content_type="application/zip"):
@@ -191,16 +191,16 @@ def test_get_ghsl_urls_invalid_bbox(bbox_moll):
         ghsl.get_ghsl_urls(bbox_moll)
 
 
-base_path = "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/"
+BASE_PATH = "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/"
 
 
 @pytest.mark.parametrize(
     "urls",
     [
-        base_path + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R2_C30.zip",
+        BASE_PATH + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R2_C30.zip",
         [
-            base_path + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R2_C30.zip",
-            base_path + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R7_C2.zip",
+            BASE_PATH + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R2_C30.zip",
+            BASE_PATH + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R7_C2.zip",
         ],
     ],
 )
@@ -251,12 +251,12 @@ def test_download_ghsl_invalid_urls(
         ),
     )
     with pytest.raises(ValueError):
-        ghsl.download_ghsl(base_path + url, save_dir=str(tmp_path))
+        ghsl.download_ghsl(BASE_PATH + url, save_dir=str(tmp_path))
 
 
 def test_download_ghsl_create_save_dir(tmp_path, monkeypatch):
     """Test the download_ghsl function with non-existent save_dir."""
-    url = base_path + (
+    url = BASE_PATH + (
         "GHS_POP_GLOBE_R2023A/GHS_POP_E2025_GLOBE_R2023A_54009_100/V1-0/tiles/"
         "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R18_C26.zip"
     )
@@ -291,7 +291,7 @@ def test_download_ghsl_connection_timeout(tmp_path, monkeypatch):
     monkeypatch.setattr(ghsl.requests, "get", fake_get)
     with pytest.raises(ValueError):
         ghsl.download_ghsl(
-            base_path + "does-not-matter.zip",
+            BASE_PATH + "does-not-matter.zip",
             save_dir=str(tmp_path),
             timeout=0.0001,
         )

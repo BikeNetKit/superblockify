@@ -26,7 +26,7 @@ class TestBasePartitioner:
     def test_abstract_class_run_not_overridden(self):
         """Test instantiating a child without overriding abstract methods."""
 
-        class ChildPartitioner(BasePartitioner):
+        class ChildPartitioner(BasePartitioner):  # pylint: disable=abstract-method
             """Child instance without overriding `run` method."""
 
         with pytest.raises(TypeError):
