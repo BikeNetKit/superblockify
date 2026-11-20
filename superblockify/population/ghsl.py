@@ -279,7 +279,7 @@ def download_ghsl(urls, save_dir=Config.GHSL_DIR, timeout=Config.DOWNLOAD_TIMEOU
         logger.debug("Downloading %s to %s...", url, save_dir)
         try:
             response = requests.get(url, timeout=timeout)
-        except requests.exceptions.ConnectionError as exc:
+        except requests.exceptions.RequestException as exc:
             raise ValueError(f"Connection error for {url}.") from exc
         # Check if the URL exists and returns a zip file
         if response.status_code != 200:
