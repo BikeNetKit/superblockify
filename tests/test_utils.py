@@ -1,17 +1,21 @@
 """Tests for the utils module."""
 
 from logging import DEBUG
-from os import remove
 from os.path import exists, join
 
+import osmnx as ox
 import pytest
+from geopandas import GeoDataFrame
 from networkx import Graph, MultiDiGraph
 from numpy import array, array_equal, int32, int64, inf, nan, isnan
+from osmnx._errors import CacheOnlyInterruptError
 from shapely import MultiPolygon, Polygon
 
 from superblockify.config import Config, set_log_level
 from superblockify.utils import (
     load_graph_from_place,
+    load_graphml_dtypes,
+    preprocess_graph,
     has_pairwise_overlap,
     compare_dicts,
     __edge_to_1d,
@@ -19,77 +23,134 @@ from superblockify.utils import (
     percentual_increase,
     compare_components_and_partitions,
 )
-from tests.conftest import mark_xfail_flaky_download
 
 
-@mark_xfail_flaky_download
+def _load_adliswil_graph():
+    """Load the local Adliswil graph and make it suitable as a raw test graph."""
+    graph = load_graphml_dtypes(
+        join(Config.TEST_DATA_PATH, "cities", "Adliswil.graphml")
+    )
+    graph.graph["edge_population"] = False
+    for _, _, data in graph.edges(data=True):
+        data.setdefault("maxspeed", data.get("speed_kph", 30))
+    return graph
+
+
+def _boundary_wgs84(graph):
+    """Return the graph boundary as a WGS84 GeoDataFrame."""
+    return GeoDataFrame(
+        geometry=[graph.graph["boundary"]],
+        crs=graph.graph["boundary_crs"],
+    ).to_crs("epsg:4326")
+
+
+def _fake_add_population(graph):
+    """Add minimal population attributes without reading a raster."""
+    for _, _, data in graph.edges(data=True):
+        data["population"] = 0.0
+        data["area"] = 1.0
+        data["cell_id"] = 0
+    graph.graph["edge_population"] = True
+
+
+def test_preprocess_graph():
+    """Test that the preprocess_graph function works."""
+    graph = _load_adliswil_graph()
+    processed = preprocess_graph(graph.copy(), boundary=_boundary_wgs84(graph))
+    assert processed.number_of_nodes() > 0
+    assert processed.number_of_edges() > 0
+    assert isinstance(processed.graph["boundary"], (MultiPolygon, Polygon))
+    for _, _, data in processed.edges(data=True):
+        assert "length" in data
+        assert "speed_kph" in data
+        assert "travel_time" in data
+
+
 @pytest.mark.parametrize("only_cache", [True, False])
 @pytest.mark.parametrize("max_nodes", [None, 100])
-def test_load_graph_from_place(only_cache, max_nodes):
-    """Test that the load_graph_from_place function works."""
+def test_load_graph_from_place(tmp_path, monkeypatch, only_cache, max_nodes):
+    """Test that the load_graph_from_place function works without network access."""
+    graph = _load_adliswil_graph()
+    boundary = _boundary_wgs84(graph)
 
-    graph = load_graph_from_place(
-        join(Config.TEST_DATA_PATH, "cities", "Adliswil.graphml"),
+    monkeypatch.setattr("superblockify.utils.add_edge_population", _fake_add_population)
+    monkeypatch.setattr(ox, "geocode_to_gdf", lambda *args, **kwargs: boundary.copy())
+
+    def fake_graph_from_polygon(*args, **kwargs):
+        if only_cache:
+            raise CacheOnlyInterruptError("Only cache allowed.")
+        return graph.copy()
+
+    monkeypatch.setattr(ox, "graph_from_polygon", fake_graph_from_polygon)
+
+    save_as = join(tmp_path, "Adliswil.graphml")
+    result = load_graph_from_place(
+        save_as,
         "Adliswil, Bezirk Horgen, Zürich, Switzerland",
         add_population=True,
         network_type="drive",
         only_cache=only_cache,
         max_nodes=max_nodes,
     )
+    ox.settings.cache_only_mode = False
+
     if only_cache:
-        assert graph is None
+        assert result is None
     else:
-        assert graph is not None
-        assert len(graph) > 0
-        assert graph.size() > 0
-        assert isinstance(graph.graph["boundary"], (MultiPolygon, Polygon))
+        assert result is not None
+        assert len(result) > 0
+        assert result.size() > 0
+        assert isinstance(result.graph["boundary"], (MultiPolygon, Polygon))
+        assert exists(save_as)
 
         # check that every edge has the attribute'length', `speed_kph`,
         # and `travel_time`
-        for _, _, data in graph.edges(data=True):
+        for _, _, data in result.edges(data=True):
             assert "length" in data
             assert "speed_kph" in data
             assert "travel_time" in data
 
 
 @pytest.mark.parametrize(
-    "city,search_string",
+    "search_string,expected_by_osmid",
     [
-        ("CPH-str", "Københavns Kommune, Region Hovedstaden, Danmark"),
+        ("Københavns Kommune, Region Hovedstaden, Danmark", False),
         (
-            "CPH-list",
             [
                 "Københavns Kommune, Region Hovedstaden, Danmark",
                 "Frederiksberg Kommune, Denmark",
             ],
+            False,
         ),
-        ("CPH-osmid", "R2192363"),
-        ("CPH-osmid-list", ["R2192363", "R2186660"]),
+        ("R2192363", True),
+        (["R2192363", "R2186660"], True),
     ],
 )
-@mark_xfail_flaky_download
-def test_load_graph_from_place_search_str_types(city, search_string):
-    """Test that the load_graph_from_place function works with different search string
-    types."""
-    graph = load_graph_from_place(
-        save_as=join(Config.TEST_DATA_PATH, "cities", f"{city}_query_test.graphml"),
+def test_load_graph_from_place_search_str_types(
+    tmp_path, monkeypatch, search_string, expected_by_osmid
+):
+    """Test that the load_graph_from_place function handles search string types."""
+    graph = _load_adliswil_graph()
+    boundary = _boundary_wgs84(graph)
+    by_osmid = []
+
+    def fake_geocode(*args, **kwargs):
+        by_osmid.append(bool(kwargs.get("by_osmid")))
+        return boundary.copy()
+
+    monkeypatch.setattr(ox, "geocode_to_gdf", fake_geocode)
+    monkeypatch.setattr(ox, "graph_from_polygon", lambda *args, **kwargs: graph.copy())
+
+    result = load_graph_from_place(
+        save_as=join(tmp_path, "query_test.graphml"),
         search_string=search_string,
         network_type="drive",
     )
-    assert graph is not None
-    assert len(graph) > 0
-    assert graph.size() > 0
-    assert isinstance(graph.graph["boundary"], (MultiPolygon, Polygon))
-
-
-@pytest.fixture(scope="module")
-def _delete_query_test_graphs():
-    """Delete the query test graphs."""
-    yield
-    for city in ["CPH-str", "CPH-list", "CPH-osmid", "CPH-osmid-list"]:
-        filepath = join(Config.TEST_DATA_PATH, "cities", f"{city}_query_test.graphml")
-        if exists(filepath):
-            remove(filepath)
+    assert result is not None
+    assert len(result) > 0
+    assert result.size() > 0
+    assert isinstance(result.graph["boundary"], (MultiPolygon, Polygon))
+    assert by_osmid == [expected_by_osmid]
 
 
 @pytest.mark.parametrize(

@@ -1,21 +1,55 @@
 """Tests for the population approximation module."""
 
 import pytest
+from geopandas import GeoDataFrame
 from networkx import ego_graph
-from numpy import float32
+from numpy import float32, ones
+from rasterio import open as rasopen
+from rasterio.transform import from_origin
 
+from superblockify.population import approximation
 from superblockify.population.approximation import (
     add_edge_population,
     get_population_area,
     get_edge_population,
 )
 
-from tests.conftest import mark_xfail_flaky_download
+
+@pytest.fixture
+def fake_ghsl_raster(tmp_path, test_city_small_copy):
+    """Create a small local raster covering the test city."""
+    _, graph = test_city_small_copy
+    boundary = GeoDataFrame(
+        geometry=[graph.graph["boundary"]], crs=graph.graph["boundary_crs"]
+    ).to_crs("World Mollweide")
+    minx, miny, maxx, maxy = boundary.total_bounds
+    resolution = 100.0
+    minx -= 1000
+    miny -= 1000
+    maxx += 1000
+    maxy += 1000
+    width = int((maxx - minx) / resolution)
+    height = int((maxy - miny) / resolution)
+    data = ones((height, width), dtype=float32)
+    path = tmp_path / "fake_ghsl.tif"
+    with rasopen(
+        path,
+        "w",
+        driver="GTiff",
+        height=height,
+        width=width,
+        count=1,
+        dtype=data.dtype,
+        crs=boundary.crs.to_wkt(),
+        transform=from_origin(minx, maxy, resolution, resolution),
+    ) as raster:
+        raster.write(data, 1)
+    return str(path)
 
 
-@mark_xfail_flaky_download
-def test_add_edge_population(test_city_small_copy):
+def test_add_edge_population(test_city_small_copy, fake_ghsl_raster, monkeypatch):
     """Test the `add_edge_population` function by design."""
+    monkeypatch.setattr(approximation, "get_ghsl", lambda bbox: fake_ghsl_raster)
     _, graph = test_city_small_copy
     add_edge_population(graph, overwrite=True)
     # Check all edges have the `population` and `area` attributes

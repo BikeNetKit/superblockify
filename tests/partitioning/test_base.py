@@ -2,6 +2,7 @@
 
 from os import path, remove
 from os.path import exists, join
+from shutil import copy
 
 import networkx as nx
 import pytest
@@ -10,7 +11,6 @@ from osmnx import load_graphml
 from superblockify.config import logger, Config
 from superblockify.partitioning import BasePartitioner
 from superblockify.utils import compare_components_and_partitions
-from tests.conftest import mark_xfail_flaky_download
 
 
 class TestBasePartitioner:
@@ -130,29 +130,19 @@ class TestPartitioners:
         assert set(sorted_nodes) == set(part.graph.nodes())
 
     @pytest.mark.parametrize(
-        "name,city_name,search_str,graph,reload_graph",
+        "graph_exists,search_str,reload_graph,should_download",
         [
+            (True, None, False, False),
             (
-                "Adliswil_tmp_name",
-                "Adliswil_tmp",
-                None,
-                load_graphml(
-                    path.join(Config.TEST_DATA_PATH, "cities", "Adliswil.graphml")
-                ),
                 False,
+                "Adliswil, Bezirk Horgen, Zürich, Switzerland",
+                False,
+                True,
             ),
             (
-                "Adliswil_tmp_name",
-                "Adliswil_tmp",
+                True,
                 "Adliswil, Bezirk Horgen, Zürich, Switzerland",
-                None,
-                False,
-            ),
-            (
-                "Adliswil_tmp_name",
-                "Adliswil_tmp",
-                "Adliswil, Bezirk Horgen, Zürich, Switzerland",
-                None,
+                True,
                 True,
             ),
         ],
@@ -160,24 +150,45 @@ class TestPartitioners:
     def test_graph_loading_and_finding(
         self,
         partitioner_class,
-        name,
-        city_name,
+        graph_exists,
         search_str,
-        graph,
         reload_graph,
+        should_download,
+        monkeypatch,
         _teardown_test_graph_io,
     ):
-        """Test loading and finding of graph files.
-        Initialization of partitioner class and `self.load_or_find_graph`."""
+        """Test loading and finding of graph files without external downloads."""
+        graph_path = join(Config.GRAPH_DIR, "Adliswil_tmp.graphml")
+        if exists(graph_path):
+            remove(graph_path)
+        if graph_exists:
+            copy(
+                join(Config.TEST_DATA_PATH, "cities", "Adliswil.graphml"),
+                graph_path,
+            )
+
+        calls = []
+
+        def fake_load_graph_from_place(*args, **kwargs):
+            calls.append((args, kwargs))
+            return load_graphml(
+                join(Config.TEST_DATA_PATH, "cities", "Adliswil.graphml")
+            )
+
+        monkeypatch.setattr(
+            "superblockify.partitioning.base.load_graph_from_place",
+            fake_load_graph_from_place,
+        )
+
         part = partitioner_class(
-            name, city_name, search_str, graph=graph, reload_graph=reload_graph
+            "Adliswil_tmp_name",
+            "Adliswil_tmp",
+            search_str,
+            reload_graph=reload_graph,
         )
         assert part.graph is not None
         assert part.name is not None
-        if reload_graph:
-            test_graph = join(Config.GRAPH_DIR, "Adliswil_tmp.graphml")
-            if exists(test_graph):
-                remove(test_graph)
+        assert bool(calls) is should_download
 
     @pytest.mark.parametrize(
         "name,city_name,search_str,graph,error_type",
@@ -240,7 +251,6 @@ class TestPartitioners:
                 city_name="test",
             )
 
-    @mark_xfail_flaky_download
     @pytest.mark.parametrize(
         "save_graph_copy,delete_before_load",
         [(False, False), (True, False), (False, True)],
@@ -253,7 +263,14 @@ class TestPartitioners:
         _teardown_test_graph_io,
     ):  # pylint: disable=too-many-branches
         """Test saving and loading of partitioner."""
-        # Prepare
+        # Prepare a local graph so no download is needed
+        graph_path = path.join(Config.GRAPH_DIR, "Adliswil_tmp_save_load.graphml")
+        if exists(graph_path):
+            remove(graph_path)
+        copy(
+            path.join(Config.TEST_DATA_PATH, "cities", "Adliswil.graphml"),
+            graph_path,
+        )
         part = partitioner_class(
             name="Adliswil_tmp_save_load_name",
             city_name="Adliswil_tmp_save_load",

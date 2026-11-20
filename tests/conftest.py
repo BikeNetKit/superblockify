@@ -1,16 +1,13 @@
 """Module for test fixtures available for all test files"""
 
+import socket
 from copy import deepcopy
-from functools import wraps
-from glob import glob
-from os import listdir, remove
+from os import environ, listdir, remove
 from os.path import getsize, join, exists
 from shutil import rmtree
 
 import pytest
 from networkx import set_node_attributes
-from requests.exceptions import ConnectTimeout
-from urllib3.exceptions import MaxRetryError
 
 from superblockify.config import Config
 from superblockify.partitioning import __all_partitioners__
@@ -331,14 +328,6 @@ def _teardown_test_folders():
                 rmtree(join(Config.RESULTS_DIR, folder))
 
 
-@pytest.fixture(scope="module")
-def _delete_ghsl_tifs():
-    """Delete GHSL tifs."""
-    yield
-    for filepath in glob(join(Config.TEST_DATA_PATH, "GHS_POP*.tif")):
-        remove(filepath)
-
-
 # ***********************
 # Hide plots during tests
 # ***********************
@@ -353,24 +342,47 @@ def _patch_plt_show(monkeypatch):
 
 
 # ****************************
-# Mark download tests as xfail
+# Network isolation
 # ****************************
 
 
-def mark_xfail_flaky_download(test_func):
-    """Decorator to mark flaky tests that download data from OSM as xfail."""
+def pytest_collection_modifyitems(config, items):
+    """Skip live tests unless they are explicitly enabled."""
+    del config
+    if environ.get("RUN_LIVE_TESTS") == "1":
+        return
+    skip_live = pytest.mark.skip(
+        reason="Live network tests are disabled. Set RUN_LIVE_TESTS=1 to run them."
+    )
+    for item in items:
+        if "live" in item.keywords:
+            item.add_marker(skip_live)
 
-    # https://stackoverflow.com/questions/43937748/wrap-each-pytest-test-function-into-try-except
-    @wraps(test_func)
-    def test_func_wrapper(*args, **kwargs):
-        try:
-            test_func(*args, **kwargs)
-        except (MaxRetryError, ConnectTimeout) as err:
-            pytest.xfail(f"Download failed for {test_func.__name__}: {err}")
-        # Also for Exception if the test includes "Bad Gateway"
-        except Exception as err:  # pylint: disable=broad-except
-            if "Bad Gateway" in str(err):  # specific error
-                pytest.xfail(f"Download failed for {test_func.__name__}: {err}")
-            raise err  # broader error - not marked as xfail
 
-    return test_func_wrapper
+@pytest.fixture(autouse=True)
+def _disable_network(request, monkeypatch):
+    """Block external network access unless a test is marked as live.
+
+    Local sockets are allowed so that multiprocessing and other local machinery
+    continue to work.
+    """
+    if "live" in request.node.keywords:
+        return
+
+    original_connect = socket.socket.connect
+
+    def guarded_connect(self, address, *args, **kwargs):
+        if self.family == getattr(socket, "AF_UNIX", None):
+            return original_connect(self, address, *args, **kwargs)
+        if (
+            isinstance(address, tuple)
+            and address
+            and address[0] in {"localhost", "127.0.0.1", "::1"}
+        ):
+            return original_connect(self, address, *args, **kwargs)
+        raise RuntimeError(
+            "Network access is disabled in tests. Use fixtures or mocks, "
+            "or mark the test with @pytest.mark.live."
+        )
+
+    monkeypatch.setattr(socket.socket, "connect", guarded_connect)

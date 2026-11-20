@@ -1,10 +1,13 @@
 """Tests for the metric class."""
 
+from os.path import exists, join
+from shutil import copy
+
 import matplotlib.pyplot as plt
 import pytest
 
+from superblockify.config import Config
 from superblockify.metrics.metric import Metric
-from tests.conftest import mark_xfail_flaky_download
 
 
 class TestMetric:
@@ -166,7 +169,6 @@ class TestMetric:
         with pytest.raises(ValueError):
             part.metric.calculate_high_bc_clustering(part.graph, percentile=percentile)
 
-    @mark_xfail_flaky_download
     @pytest.mark.parametrize("dismiss_distance_matrix", [True, False])
     def test_saving_and_loading(
         self,
@@ -175,7 +177,13 @@ class TestMetric:
         _teardown_test_graph_io,
     ):
         """Test saving and loading of metrics."""
-        # Prepare
+        # Prepare a local graph so no download is needed
+        graph_path = join(Config.GRAPH_DIR, "Adliswil_tmp.graphml")
+        if not exists(graph_path):
+            copy(
+                join(Config.TEST_DATA_PATH, "cities", "Adliswil.graphml"),
+                graph_path,
+            )
         part = partitioner_class(
             name="Adliswil_tmp_name",
             city_name="Adliswil_tmp",
