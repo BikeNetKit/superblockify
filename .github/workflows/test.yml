@@ -34,13 +34,13 @@ jobs:
     name: Cache for ${{ matrix.python-version }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Get week number
         run: echo "WEEK=$(date +'%V')" >> $GITHUB_ENV
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: mamba-org/setup-micromamba@v2
+        uses: mamba-org/setup-micromamba@v3
         with:
           create-args: python=${{ matrix.python-version }}
           environment-file: environment-dev.yml
@@ -77,13 +77,13 @@ jobs:
         shell: bash -el {0}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Get week number
         run: echo "WEEK=$(date +'%V')" >> $GITHUB_ENV
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: mamba-org/setup-micromamba@v2
+        uses: mamba-org/setup-micromamba@v3
         with:
           create-args: python=${{ matrix.python-version }}
           environment-file: environment-dev.yml
@@ -124,7 +124,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Load coverages
         uses: actions/download-artifact@v8
@@ -141,6 +141,6 @@ jobs:
         run: coverage combine coverage/
 
       - name: Upload coverage report to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

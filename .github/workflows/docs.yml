@@ -49,13 +49,13 @@ jobs:
           fi
 
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Get week number
         run: echo "WEEK=$(date +'%V')" >> $GITHUB_ENV
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: mamba-org/setup-micromamba@v2
+        uses: mamba-org/setup-micromamba@v3
         with:
           create-args: python=${{ matrix.python-version }}
           environment-file: environment-dev.yml
@@ -71,12 +71,12 @@ jobs:
         run: sphinx-build docs public -b dirhtml
 
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           # Upload generated html
           path: 'public/'
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
