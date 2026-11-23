@@ -14,7 +14,7 @@ class TestAttributePartitioner:
         """If write_attribute is not overwritten, raise a TypeError
         when instantiating the class."""
         with pytest.raises(TypeError):
-            # pylint: disable=too-few-public-methods
+            # pylint: disable=too-few-public-methods,abstract-method
             class NotOverwritten(AttributePartitioner):
                 """Partitioner that does not overwrite write_attribute."""
 

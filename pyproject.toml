@@ -103,6 +103,9 @@ disable = "too-many-arguments"
 minversion = "7.0"
 addopts = "-ra"
 testpaths = ["tests"]
+markers = [
+  "live: tests that access external network services (skipped unless RUN_LIVE_TESTS=1)",
+]
 
 [tool.coverage.run]
 branch = true

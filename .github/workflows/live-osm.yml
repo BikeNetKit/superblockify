@@ -1,0 +1,64 @@
+name: Live OSM compatibility
+
+on:
+  schedule: # First day of every month at 04:00 UTC
+    - cron: '0 4 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  live-osm:
+    name: Live OSM compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash -el {0}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: mamba-org/setup-micromamba@v3
+        with:
+          create-args: python=3.12
+          environment-file: environment-dev.yml
+          cache-environment: true
+
+      - name: Install superblockify
+        run: pip install --no-build-isolation --no-deps -e .
+
+      - name: Run live OSM compatibility test
+        env:
+          RUN_LIVE_TESTS: "1"
+        run: pytest -m live tests/test_live_osm.py
+
+      - name: Report failure
+        if: failure()
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const title = 'Scheduled live OSM compatibility test failed';
+            const { owner, repo } = context.repo;
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const body = `The scheduled live OSM compatibility check failed. See the [workflow run](${runUrl}) for details.`;
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const existing = issues.find((issue) => issue.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({ owner, repo, title, body });
+            }

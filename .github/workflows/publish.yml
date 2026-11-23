@@ -22,7 +22,7 @@ jobs:
       url: https://pypi.org/project/superblockify/
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build package
         run: |
