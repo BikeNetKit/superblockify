@@ -1,7 +1,8 @@
 """Tests for the ghsl module."""
 
-from os.path import join, isfile
-from shutil import rmtree
+from io import BytesIO
+from os.path import basename, isfile, join
+from zipfile import ZipFile
 
 import pytest
 from affine import Affine
@@ -11,10 +12,30 @@ from numpy import ndarray
 from superblockify.config import Config
 from superblockify.population import ghsl
 
-from tests.conftest import mark_xfail_flaky_download
+GHSL_TIF = join(
+    Config.TEST_DATA_PATH,
+    "ghsl",
+    "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R10_C29.tif",
+)
 
 
-@mark_xfail_flaky_download
+class _FakeResponse:  # pylint: disable=too-few-public-methods
+    """Minimal requests response for mocked downloads."""
+
+    def __init__(self, content=b"", status_code=200, content_type="application/zip"):
+        self.content = content
+        self.status_code = status_code
+        self.headers = {"Content-Type": content_type}
+
+
+def _zip_bytes(url):
+    """Create an in-memory zip with the raster name expected by download_ghsl."""
+    buffer = BytesIO()
+    with ZipFile(buffer, "w") as zip_file:
+        zip_file.writestr(basename(url)[:-4] + ".tif", b"fake tif")
+    return buffer.getvalue()
+
+
 @pytest.mark.parametrize(
     "resample_factor, no_window",
     [
@@ -24,8 +45,11 @@ from tests.conftest import mark_xfail_flaky_download
         (1 / 100, True),
     ],
 )
-def test_resample_load_window_gdf(resample_factor, no_window, test_one_city_copy):
+def test_resample_load_window_gdf(
+    resample_factor, no_window, test_one_city_copy, monkeypatch
+):
     """Test loading and resampling a gdf window of a raster file."""
+    monkeypatch.setattr(ghsl, "get_ghsl", lambda bbox: GHSL_TIF)
     _, graph = test_one_city_copy
     # Get mollweide bounding box
     boundary_polygon = graph.graph["boundary"]
@@ -33,9 +57,8 @@ def test_resample_load_window_gdf(resample_factor, no_window, test_one_city_copy
     boundary_gdf = GeoDataFrame(geometry=[boundary_polygon], crs=crs).to_crs(
         "World Mollweide"
     )
-    ghsl_raster_file = ghsl.get_ghsl(list(boundary_gdf.bounds.values[0]))
     raster_rescaled, res_affine = ghsl.resample_load_window(
-        ghsl_raster_file,
+        GHSL_TIF,
         resample_factor=resample_factor,
         window=boundary_gdf if not no_window else None,
     )
@@ -43,21 +66,12 @@ def test_resample_load_window_gdf(resample_factor, no_window, test_one_city_copy
     assert isinstance(res_affine, Affine)
 
 
-@mark_xfail_flaky_download
 @pytest.mark.parametrize("window", [True, False, 1, 1.0, "test"])
-def test_resample_load_window_gdf_wrong_type(window, test_one_city_copy):
+def test_resample_load_window_gdf_wrong_type(window):
     """Test loading and resampling a gdf window with wrong type."""
-    _, graph = test_one_city_copy
-    # Get mollweide bounding box
-    boundary_polygon = graph.graph["boundary"]
-    crs = graph.graph["boundary_crs"]
-    boundary_gdf = GeoDataFrame(geometry=[boundary_polygon], crs=crs).to_crs(
-        "World Mollweide"
-    )
-    ghsl_raster_file = ghsl.get_ghsl(list(boundary_gdf.bounds.values[0]))
     with pytest.raises(TypeError):
         ghsl.resample_load_window(
-            ghsl_raster_file,
+            GHSL_TIF,
             resample_factor=1,
             window=window,
         )
@@ -177,26 +191,27 @@ def test_get_ghsl_urls_invalid_bbox(bbox_moll):
         ghsl.get_ghsl_urls(bbox_moll)
 
 
-base_path = (
-    "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/GHS_POP_GLOBE_R2023A"
-    "/GHS_POP_E2025_GLOBE_R2023A_54009_100/V1-0/tiles/"
-)
+BASE_PATH = "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/"
 
 
-@mark_xfail_flaky_download
 @pytest.mark.parametrize(
     "urls",
     [
-        base_path + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R2_C30.zip",
+        BASE_PATH + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R2_C30.zip",
         [
-            base_path + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R2_C30.zip",
-            base_path + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R7_C2.zip",
+            BASE_PATH + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R2_C30.zip",
+            BASE_PATH + "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R7_C2.zip",
         ],
     ],
 )
-def test_download_ghsl(urls, _delete_ghsl_tifs):
-    """Test the download_ghsl function."""
-    filepaths = ghsl.download_ghsl(urls, save_dir=Config.TEST_DATA_PATH)
+def test_download_ghsl(urls, tmp_path, monkeypatch):
+    """Test the download_ghsl function with mocked downloads."""
+    monkeypatch.setattr(
+        ghsl.requests,
+        "get",
+        lambda url, timeout=None: _FakeResponse(_zip_bytes(url)),
+    )
+    filepaths = ghsl.download_ghsl(urls, save_dir=str(tmp_path))
     assert (
         isinstance(filepaths, list)
         and isinstance(urls, list)
@@ -208,62 +223,76 @@ def test_download_ghsl(urls, _delete_ghsl_tifs):
         assert isfile(filepath)
 
 
-base_path = "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/"
-
-
 @pytest.mark.parametrize(
-    "url, save_dir",
+    "url,status_code,content_type",
     [
         (  # non-existent tile
             "GHS_POP_GLOBE_R2023A/GHS_POP_E2025_GLOBE_R2023A_54009_100/V1-0/tiles/"
             "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R18_C27.zip",
-            Config.TEST_DATA_PATH,
+            404,
+            "application/zip",
         ),
         (  # non-zip file
             "copyright.txt",
-            Config.TEST_DATA_PATH,
+            200,
+            "text/plain",
         ),
     ],
 )
-def test_download_ghsl_invalid_urls(url, save_dir):
+def test_download_ghsl_invalid_urls(
+    url, status_code, content_type, tmp_path, monkeypatch
+):
     """Test the download_ghsl function with invalid urls."""
+    monkeypatch.setattr(
+        ghsl.requests,
+        "get",
+        lambda *args, **kwargs: _FakeResponse(
+            b"", status_code=status_code, content_type=content_type
+        ),
+    )
     with pytest.raises(ValueError):
-        ghsl.download_ghsl(base_path + url, save_dir=save_dir)
+        ghsl.download_ghsl(BASE_PATH + url, save_dir=str(tmp_path))
 
 
-@mark_xfail_flaky_download
-def test_download_ghsl_create_save_dir(_delete_ghsl_tifs):
+def test_download_ghsl_create_save_dir(tmp_path, monkeypatch):
     """Test the download_ghsl function with non-existent save_dir."""
-    url = base_path + (
+    url = BASE_PATH + (
         "GHS_POP_GLOBE_R2023A/GHS_POP_E2025_GLOBE_R2023A_54009_100/V1-0/tiles/"
         "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R18_C26.zip"
     )
-    ghsl.download_ghsl(url, save_dir=join(Config.TEST_DATA_PATH, "non-existent-dir"))
-    # Check files exist in save_dir
-    assert isfile(
-        join(
-            Config.TEST_DATA_PATH,
-            "non-existent-dir",
-            "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R18_C26.tif",
-        )
+    monkeypatch.setattr(
+        ghsl.requests,
+        "get",
+        lambda *args, **kwargs: _FakeResponse(_zip_bytes(url)),
     )
-    # Delete folder
-    rmtree(join(Config.TEST_DATA_PATH, "non-existent-dir"))
+    save_dir = tmp_path / "non-existent-dir"
+    ghsl.download_ghsl(url, save_dir=str(save_dir))
+    # Check files exist in save_dir
+    assert isfile(join(str(save_dir), basename(url)[:-4] + ".tif"))
 
 
-def test_download_ghsl_connection_error():
+def test_download_ghsl_connection_error(tmp_path, monkeypatch):
     """Test the download_ghsl function for a connection error."""
+
+    def fake_get(*args, **kwargs):
+        raise ghsl.requests.exceptions.ConnectionError("connection error")
+
+    monkeypatch.setattr(ghsl.requests, "get", fake_get)
     with pytest.raises(ValueError):
-        ghsl.download_ghsl("https://non-existent-url.com")
+        ghsl.download_ghsl("https://non-existent-url.com", save_dir=str(tmp_path))
 
 
-def test_download_ghsl_connection_timeout():
+def test_download_ghsl_connection_timeout(tmp_path, monkeypatch):
     """Test the download_ghsl function for a connection timeout."""
+
+    def fake_get(*args, **kwargs):
+        raise ghsl.requests.exceptions.Timeout("timeout")
+
+    monkeypatch.setattr(ghsl.requests, "get", fake_get)
     with pytest.raises(ValueError):
         ghsl.download_ghsl(
-            "https://jeodpp.jrc.ec.europa.eu/ftp/jrc-opendata/GHSL/"
-            "GHS_POP_GLOBE_R2023A/GHS_POP_E2025_GLOBE_R2023A_54009_100/V1-0/tiles/"
-            "GHS_POP_E2025_GLOBE_R2023A_54009_100_V1_0_R18_C26.zip",
+            BASE_PATH + "does-not-matter.zip",
+            save_dir=str(tmp_path),
             timeout=0.0001,
         )
 
@@ -301,11 +330,11 @@ def test_download_ghsl_connection_timeout():
         ),
     ],
 )
-def test_get_ghsl(full_raster, bbox_moll, expected, monkeypatch, _delete_ghsl_tifs):
+def test_get_ghsl(full_raster, bbox_moll, expected, monkeypatch):
     """Test the get_ghsl_urls function.
     Overwrite the config.Config.FULL_RASTER value with full_raster.
     """
-    Config.FULL_RASTER = full_raster
+    monkeypatch.setattr(Config, "FULL_RASTER", full_raster)
     # mock download_ghsl not to download the files
     monkeypatch.setattr(ghsl, "download_ghsl", lambda ghsl_urls: ghsl_urls)
     urls = ghsl.get_ghsl(bbox_moll=bbox_moll)
@@ -332,10 +361,10 @@ def test_get_ghsl(full_raster, bbox_moll, expected, monkeypatch, _delete_ghsl_ti
         ),
     ],
 )
-def test_get_ghsl_invalid(full_raster, bbox_moll):
+def test_get_ghsl_invalid(full_raster, bbox_moll, monkeypatch):
     """Test the get_ghsl_urls with invalid inputs.
     Overwrite the config.Config.FULL_RASTER value with full_raster.
     """
-    Config.FULL_RASTER = full_raster
+    monkeypatch.setattr(Config, "FULL_RASTER", full_raster)
     with pytest.raises(ValueError):
         ghsl.get_ghsl(bbox_moll=bbox_moll)

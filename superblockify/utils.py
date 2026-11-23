@@ -6,6 +6,7 @@ from os.path import getsize
 from re import match
 
 import osmnx as ox
+from geopandas import GeoDataFrame
 from networkx import Graph, is_isomorphic, set_node_attributes
 from numba import njit, int64, int32, prange
 from numpy import (
@@ -22,6 +23,7 @@ from numpy import (
     nan,
 )
 from osmnx._errors import CacheOnlyInterruptError
+from osmnx.projection import is_projected
 from osmnx.stats import count_streets_per_node
 from shapely import wkt
 
@@ -71,6 +73,103 @@ def extract_attributes(graph, edge_attributes, node_attributes):
         for att in excess_attributes:
             attr_dict.pop(att, None)
 
+    return graph
+
+
+def preprocess_graph(
+    graph,
+    boundary=None,
+    add_population=False,
+    max_nodes=Config.MAX_NODES,
+):
+    """Preprocess a graph for superblockify.
+
+    Adds the attributes needed by the package and optionally reduces the graph.
+
+    Parameters
+    ----------
+    graph : networkx.MultiDiGraph
+        The graph to preprocess. Can be projected or unprojected.
+    boundary : geopandas.GeoDataFrame or shapely.geometry.base.BaseGeometry, optional
+        Boundary of the graph. If None, the graph attributes ``boundary`` and
+        ``boundary_crs`` are used. Default is None.
+    add_population : bool, optional
+        Whether to add population data to the graph. Default is False.
+    max_nodes : int, optional
+        Maximum number of nodes in the graph. If the graph has more nodes, it will
+        be reduced to `max_nodes`, by taking the ego graph of a representative,
+        central node. If None, the graph will not be reduced. Default is set in
+        :mod:`superblockify.config`.
+
+    Returns
+    -------
+    networkx.MultiDiGraph
+        The preprocessed graph.
+
+    Raises
+    ------
+    ValueError
+        If no boundary is given and the graph has no boundary attributes.
+    """
+
+    # Add edge bearings before projecting so that they are based on geographic
+    # coordinates when the input graph is still unprojected.
+    if not is_projected(graph.graph.get("crs")):
+        graph = ox.add_edge_bearings(graph)
+        # Project to local UTM - coordinates can be used as
+        graph = ox.project_graph(graph)
+
+    graph = ox.add_edge_speeds(graph)  # adds attribute "maxspeed"
+    graph = ox.add_edge_travel_times(graph)  # adds attribute "travel_time"
+    # count the number of streets per node / degree
+    street_count = count_streets_per_node(graph)
+    set_node_attributes(graph, values=street_count, name="street_count")
+    graph = extract_attributes(
+        graph,
+        edge_attributes={
+            "geometry",
+            "osmid",
+            "length",
+            "highway",
+            "speed_kph",
+            "travel_time",
+            "bearing",
+        },
+        node_attributes={"y", "x", "lat", "lon", "osmid", "street_count"},
+    )
+    # Add edge population and area
+    if add_population:
+        add_edge_population(graph)
+
+    # Add boundary as union of all polygons as attribute - in UTM crs of centroid
+    if boundary is None:
+        if "boundary" not in graph.graph or "boundary_crs" not in graph.graph:
+            raise ValueError(
+                "A boundary must be given or stored in the graph attributes "
+                "`boundary` and `boundary_crs`."
+            )
+        boundary = GeoDataFrame(
+            geometry=[graph.graph["boundary"]],
+            crs=graph.graph["boundary_crs"],
+        )
+    elif not isinstance(boundary, GeoDataFrame):
+        boundary = GeoDataFrame(
+            geometry=[boundary],
+            crs=graph.graph.get("boundary_crs", graph.graph.get("crs")),
+        )
+    if boundary.crs is None:
+        raise ValueError("The boundary must have a CRS.")
+    if boundary.crs.is_geographic:
+        boundary = ox.projection.project_gdf(boundary)
+
+    graph.graph["boundary_crs"] = boundary.crs
+    graph.graph["boundary"] = boundary.geometry.union_all()
+    graph.graph["area"] = graph.graph["boundary"].area
+    # update graph attributes with basic graph stats
+    graph.graph.update(basic_graph_stats(graph, area=graph.graph["area"]))
+    if max_nodes is not None and graph.number_of_nodes() > max_nodes:
+        logger.debug("Reducing graph to %s nodes", max_nodes)
+        graph = reduce_graph(graph, max_nodes=max_nodes)
     return graph
 
 
@@ -137,46 +236,12 @@ def load_graph_from_place(
         logger.debug("Only loaded graph from cache")
         return None
     logger.debug("Downloaded graph - Preprocessing")
-    # Add edge bearings
-    graph = ox.add_edge_bearings(graph)  # precision=2)  # the precision >1 is
-    # important for binning when using the deprecated BearingPartitioner
-
-    # Project to local UTM - coordinates can be used as
-    graph = ox.project_graph(graph)
-
-    graph = ox.add_edge_speeds(graph)  # adds attribute "maxspeed"
-    graph = ox.add_edge_travel_times(graph)  # adds attribute "travel_time"
-    # count the number of streets per node / degree
-    street_count = count_streets_per_node(graph)
-    set_node_attributes(graph, values=street_count, name="street_count")
-    graph = extract_attributes(
+    graph = preprocess_graph(
         graph,
-        edge_attributes={
-            "geometry",
-            "osmid",
-            "length",
-            "highway",
-            "speed_kph",
-            "travel_time",
-            "bearing",
-        },
-        node_attributes={"y", "x", "lat", "lon", "osmid", "street_count"},
+        boundary=mult_polygon,
+        add_population=add_population,
+        max_nodes=max_nodes,
     )
-    # Add edge population and area
-    if add_population:
-        add_edge_population(graph)
-
-    # Add boundary as union of all polygons as attribute - in UTM crs of centroid
-    mult_polygon = ox.projection.project_gdf(mult_polygon)
-    graph.graph["boundary_crs"] = mult_polygon.crs
-    graph.graph["boundary"] = mult_polygon.geometry.union_all()
-    graph.graph["area"] = graph.graph["boundary"].area
-    # update graph attributes with basic graph stats
-    graph.graph.update(basic_graph_stats(graph, area=graph.graph["area"]))
-    # Save graph
-    if max_nodes is not None and graph.number_of_nodes() > max_nodes:
-        logger.debug("Reducing graph to %s nodes", max_nodes)
-        graph = reduce_graph(graph, max_nodes=max_nodes)
     logger.debug("Preprocessing done - Saving graph")
     ox.save_graphml(graph, filepath=save_as)
     logger.debug("Saved graph (%s MB) to %s", getsize(save_as) >> 20, save_as)
