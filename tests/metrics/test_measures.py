@@ -31,6 +31,7 @@ from superblockify.metrics.measures import (
     __calculate_high_bc_clustering,
     __calculate_high_bc_anisotropy,
     add_relative_changes,
+    write_component_wise_travel_increase,
 )
 from superblockify.utils import __edges_to_1d, percentual_increase, logger
 
@@ -246,6 +247,48 @@ def test_calculate_coverage(weights_in, weights_out, expected):
                 else sum(weights_in) / sum(weights_in + weights_out)
             ),
         )
+
+
+def test_write_component_wise_travel_increase_skips_ignored_components():
+    """Ignored components get no rel_increase, active components do."""
+    graph = MultiDiGraph([(0, 1), (2, 3)])
+
+    @dataclass
+    class Part:
+        """Mock class to pass as partitioner"""
+
+        graph: MultiDiGraph
+        sparsified: MultiDiGraph
+        components: list
+
+        def get_ltns(self):
+            """Return the components of the partitioner."""
+            return self.components
+
+    ignored = {
+        "name": "ignored",
+        "subgraph": graph.edge_subgraph([(0, 1, 0)]),
+        "ignore": True,
+    }
+    active = {
+        "name": "active",
+        "subgraph": graph.edge_subgraph([(2, 3, 0)]),
+        "ignore": False,
+    }
+    part = Part(graph, MultiDiGraph(), [ignored, active])
+
+    write_component_wise_travel_increase(
+        part,
+        {"S": full((4, 4), 2.0), "N": full((4, 4), 1.0)},
+        [0, 1, 2, 3],
+        "S",
+        "N",
+    )
+
+    assert "rel_increase" not in ignored
+    assert "rel_increase_comp" not in graph.edges[0, 1, 0]
+    assert active["rel_increase"] == 2.0
+    assert graph.edges[2, 3, 0]["rel_increase_comp"] == 2.0
 
 
 @pytest.mark.parametrize(
