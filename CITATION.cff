@@ -22,7 +22,10 @@ keywords:
   - urban mobility
   - urban data
 license: AGPL-3.0-or-later
-doi: 10.5281/zenodo.13300611
+version: "1.0.3"
+date-released: "2026-11-24"
+# Concept DOI: always resolves to the latest Zenodo version
+doi: 10.5281/zenodo.13300610
 message: If you use this software, please cite our article in the
   Journal of Open Source Software.
 preferred-citation:
