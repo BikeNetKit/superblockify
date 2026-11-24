@@ -1,33 +1,104 @@
 name: Publish to PyPI
 
 on:
-  pull_request:
+  # Runs after the release-please workflow finished on a push to main.
+  # The release itself cannot trigger this workflow: release-please creates the
+  # tag and GitHub Release with GITHUB_TOKEN, and such events do not start runs.
+  workflow_run:
+    workflows:
+      - release-please
     types:
-      - closed
-    branches:
-      - main
+      - completed
+  # Manual (re-)publish of an existing tag
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish (e.g. v1.0.3)"
+        required: true
+        type: string
 
 permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: publish-pypi
+  cancel-in-progress: false
+
 jobs:
   publish:
     name: Publish to PyPI
     if: |
-      contains(github.event.pull_request.labels.*.name, 'autorelease: tagged')
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment:
       name: pypi
       url: https://pypi.org/project/superblockify/
 
     steps:
-      - uses: actions/checkout@v7
+      # fetch-depth: 0 so that the tags created by release-please are available
+      - name: Check out repository with tags
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag }}
+
+      - name: Determine tag to publish
+        id: release
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          if [ -n "$INPUT_TAG" ]; then
+            tag="$INPUT_TAG"
+          else
+            # Newest tag reachable from main. If no new release was created,
+            # this is the already published one and the upload below is skipped.
+            tag=$(git describe --tags --abbrev=0)
+          fi
+          git checkout --quiet --detach "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "Publishing $tag"
+
+      - name: Check if version is already on PyPI
+        id: pypi
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          status=$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://pypi.org/pypi/superblockify/${VERSION}/json")
+          if [ "$status" = "200" ]; then
+            echo "superblockify $VERSION is already on PyPI, nothing to do."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify version matches tag
+        if: steps.pypi.outputs.exists == 'false'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          version=$(python3 -c "import pathlib,re;print(re.search(r'__version__ = \"([^\"]+)\"', pathlib.Path('superblockify/_version.py').read_text()).group(1))")
+          echo "Tag: $TAG, superblockify/_version.py: $version"
+          if [ "v$version" != "$TAG" ] && [ "$version" != "$TAG" ]; then
+            echo "::error::Tag '$TAG' does not match version '$version' in superblockify/_version.py"
+            exit 1
+          fi
+
+      - name: Set up Python
+        if: steps.pypi.outputs.exists == 'false'
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
 
       - name: Build package
+        if: steps.pypi.outputs.exists == 'false'
         run: |
           python -m pip install build
           python -m build
 
       - name: Publish to PyPI
+        if: steps.pypi.outputs.exists == 'false'
         uses: pypa/gh-action-pypi-publish@release/v1
