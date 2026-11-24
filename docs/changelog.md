@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.4](https://github.com/BikeNetKit/superblockify/compare/v1.0.3...v1.0.4) (2026-11-24)
+
+
+### Documentation
+
+* cite Zenodo concept DOI and current version in CITATION.cff ([144faea](https://github.com/BikeNetKit/superblockify/commit/144faeaba8f0b7c6f1d4c966a6b12143c6a3bd85))
+
 ## [1.0.3](https://github.com/BikeNetKit/superblockify/compare/v1.0.2...v1.0.3) (2026-11-24)
 
 
